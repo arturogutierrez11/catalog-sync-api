@@ -18,9 +18,19 @@ export class GetSellerItemsRepository implements IGetItemsIdRepository {
       params,
     });
 
+    // 🔴 SCAN MODE
+    if (params.useScan) {
+      return {
+        sellerId: response.seller_id,
+        items: response.items ?? [],
+        scrollId: response.scroll_id,
+      };
+    }
+
+    // 🔵 OFFSET MODE
     return {
       sellerId: response.seller_id,
-      items: response.items,
+      items: response.items ?? [],
       pagination: {
         limit: response.pagination.limit,
         offset: response.pagination.offset,

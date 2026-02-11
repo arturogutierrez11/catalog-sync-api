@@ -1,9 +1,11 @@
 import { ItemsId } from 'src/core/entitis/mercadolibre-api/ItemsId';
 
 export interface GetItemsIdParams {
-  limit: number;
-  offset: number;
   status?: 'active' | 'paused' | 'closed';
+  offset?: number;
+  limit?: number;
+  useScan?: boolean;
+  scrollId?: string;
 }
 
 export interface IGetItemsIdRepository {
