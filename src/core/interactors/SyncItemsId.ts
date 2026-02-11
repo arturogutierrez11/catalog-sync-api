@@ -14,7 +14,6 @@ export class SyncItemsId {
 
   private readonly MAX_PAGE_RETRIES = 3;
   private readonly MAX_SAVE_RETRIES = 3;
-  private readonly MAX_FAILED_PAGES = 10;
 
   constructor(
     @Inject('IGetItemsIdRepository')
@@ -27,35 +26,49 @@ export class SyncItemsId {
     private readonly syncStatesRepo: ISyncStatesRepository,
   ) {}
 
+  /**
+   * FULL REBUILD
+   * - Siempre empieza desde cero
+   * - No usa offset
+   * - No usa estado previo
+   */
   async execute(sellerId: string): Promise<void> {
-    const state = await this.syncStatesRepo.getState({
+    console.log('[SyncItemsId] ===== FULL SYNC START =====');
+
+    // 🔥 Siempre marcar start
+    await this.syncStatesRepo.postState('start', {
       process_name: this.PROCESS_NAME,
       seller_id: sellerId,
     });
 
-    let offset = state?.last_offset ?? 0;
+    try {
+      await this.processAll(sellerId);
 
-    if (!state) {
-      await this.syncStatesRepo.postState('start', {
+      await this.syncStatesRepo.postState('done', {
         process_name: this.PROCESS_NAME,
         seller_id: sellerId,
+        last_offset: 0,
       });
+
+      console.log('[SyncItemsId] ===== FULL SYNC DONE =====');
+    } catch (error) {
+      console.error('[SyncItemsId] ===== SYNC FAILED =====');
+
+      await this.syncStatesRepo.postState('failed', {
+        process_name: this.PROCESS_NAME,
+        seller_id: sellerId,
+        last_offset: 0,
+      });
+
+      throw error; // importante para que Bull reintente
     }
-
-    offset = await this.processAll(sellerId, offset);
-
-    await this.syncStatesRepo.postState('done', {
-      process_name: this.PROCESS_NAME,
-      seller_id: sellerId,
-      last_offset: offset,
-    });
   }
 
-  private async processAll(
-    sellerId: string,
-    startScrollId?: string,
-  ): Promise<string | null> {
-    let scrollId: string | undefined = startScrollId;
+  /**
+   * SCAN COMPLETO
+   */
+  private async processAll(sellerId: string): Promise<void> {
+    let scrollId: string | undefined;
     let buffer: string[] = [];
     let hasMore = true;
 
@@ -63,6 +76,7 @@ export class SyncItemsId {
       let pageResponse: ItemsId | null = null;
       let attempts = 0;
 
+      // 🔁 Retry por request SCAN
       while (attempts < this.MAX_PAGE_RETRIES) {
         try {
           pageResponse = await this.meliItemsRepo.getSellerItems({
@@ -76,50 +90,49 @@ export class SyncItemsId {
         } catch (error) {
           attempts++;
           console.error(
-            `[SyncItemsId] Scroll request failed (attempt ${attempts})`,
+            `[SyncItemsId] SCAN request failed (attempt ${attempts})`,
           );
-
           await this.sleep(2000);
         }
       }
 
       if (!pageResponse) {
-        throw new Error('Scan request permanently failed');
+        throw new Error('SCAN request permanently failed');
       }
 
       const received = pageResponse.items.length;
 
       console.log(`[SyncItemsId] SCAN | received=${received}`);
 
+      // 🔚 Fin del scan
       if (received === 0) {
         hasMore = false;
         break;
       }
 
       buffer.push(...pageResponse.items);
+
+      // 🔥 Guardar siguiente scroll_id
       scrollId = pageResponse.scrollId;
 
+      // 🔥 Guardado por lote
       if (buffer.length >= this.BULK_SIZE) {
         await this.saveWithRetry(sellerId, buffer);
         buffer = [];
-
-        await this.syncStatesRepo.postState('offset', {
-          process_name: this.PROCESS_NAME,
-          seller_id: sellerId,
-          last_offset: 0, // ya no usamos offset
-        });
       }
 
       await this.sleep(this.THROTTLE_MS);
     }
 
+    // Flush final
     if (buffer.length) {
       await this.saveWithRetry(sellerId, buffer);
     }
-
-    return scrollId ?? null;
   }
 
+  /**
+   * Guardado con retry
+   */
   private async saveWithRetry(
     sellerId: string,
     items: string[],
@@ -139,21 +152,13 @@ export class SyncItemsId {
         return;
       } catch (error) {
         attempts++;
-
         console.error(`[SyncItemsId] BULK SAVE failed (attempt ${attempts})`);
-
         await this.sleep(3000);
       }
     }
 
     console.error('[SyncItemsId] BULK SAVE permanently failed');
 
-    await this.syncStatesRepo.postState('failed', {
-      process_name: this.PROCESS_NAME,
-      seller_id: sellerId,
-    });
-
-    // 🔥 Importante: lanzar error para que Bull reintente el job completo
     throw new Error('Bulk save permanently failed');
   }
 
