@@ -53,9 +53,9 @@ export class SyncItemsId {
 
   private async processAll(
     sellerId: string,
-    startPage: number,
+    startOffset: number,
   ): Promise<number> {
-    let page = startPage;
+    let offset = startOffset;
     let hasNext = true;
     let buffer: string[] = [];
     let failedPages = 0;
@@ -64,36 +64,33 @@ export class SyncItemsId {
       let pageResponse: ItemsId | null = null;
       let attempts = 0;
 
-      // 🔁 Retry por página
+      // 🔁 Retry por request
       while (attempts < this.MAX_PAGE_RETRIES) {
         try {
           pageResponse = await this.meliItemsRepo.getSellerItems({
             status: 'active',
             limit: this.PAGE_LIMIT,
-            offset: page,
+            offset: offset, // 🔥 offset real
           });
 
           break;
         } catch (error) {
           attempts++;
           console.error(
-            `[SyncItemsId] Page ${page} failed (attempt ${attempts})`,
+            `[SyncItemsId] Offset ${offset} failed (attempt ${attempts})`,
           );
 
           await this.sleep(2000);
         }
       }
 
-      // ❌ Página falló completamente
       if (!pageResponse) {
         failedPages++;
-
-        console.error(`[SyncItemsId] Page ${page} permanently failed`);
 
         await this.syncStatesRepo.postState('failed', {
           process_name: this.PROCESS_NAME,
           seller_id: sellerId,
-          last_offset: page,
+          last_offset: offset,
         });
 
         if (failedPages >= this.MAX_FAILED_PAGES) {
@@ -102,20 +99,21 @@ export class SyncItemsId {
           );
         }
 
-        page++;
+        offset += this.PAGE_LIMIT;
         continue;
       }
 
       console.log(
-        `[SyncItemsId] FETCH page=${page} | received=${pageResponse.items.length} | total=${pageResponse.pagination.total}`,
+        `[SyncItemsId] FETCH offset=${offset} | received=${pageResponse.items.length} | total=${pageResponse.pagination.total}`,
       );
 
       buffer.push(...pageResponse.items);
       hasNext = pageResponse.pagination.hasNext;
 
-      page++;
+      // 🔥 avanzar correctamente
+      offset += this.PAGE_LIMIT;
 
-      // 🔥 Guardado por lotes
+      // 🔥 guardado por lote
       if (buffer.length >= this.BULK_SIZE) {
         await this.saveWithRetry(sellerId, buffer);
         buffer = [];
@@ -123,11 +121,10 @@ export class SyncItemsId {
         await this.syncStatesRepo.postState('offset', {
           process_name: this.PROCESS_NAME,
           seller_id: sellerId,
-          last_offset: page,
+          last_offset: offset,
         });
       }
 
-      // 🧘 throttle
       await this.sleep(this.THROTTLE_MS);
     }
 
@@ -136,7 +133,7 @@ export class SyncItemsId {
       await this.saveWithRetry(sellerId, buffer);
     }
 
-    return page;
+    return offset;
   }
 
   private async saveWithRetry(
