@@ -28,14 +28,10 @@ export class SyncItemsId {
 
   /**
    * FULL REBUILD
-   * - Siempre empieza desde cero
-   * - No usa offset
-   * - No usa estado previo
    */
   async execute(sellerId: string): Promise<void> {
     console.log('[SyncItemsId] ===== FULL SYNC START =====');
 
-    // 🔥 Siempre marcar start
     await this.syncStatesRepo.postState('start', {
       process_name: this.PROCESS_NAME,
       seller_id: sellerId,
@@ -60,31 +56,36 @@ export class SyncItemsId {
         last_offset: 0,
       });
 
-      throw error; // importante para que Bull reintente
+      throw error;
     }
   }
 
   /**
-   * SCAN COMPLETO
+   * SCAN LOOP
    */
   private async processAll(sellerId: string): Promise<void> {
-    let scrollId: string | undefined;
+    let scrollId: string | undefined = undefined;
     let buffer: string[] = [];
-    let hasMore = true;
+    let pageCount = 0;
 
-    while (hasMore) {
+    while (true) {
       let pageResponse: ItemsId | null = null;
       let attempts = 0;
 
-      // 🔁 Retry por request SCAN
       while (attempts < this.MAX_PAGE_RETRIES) {
         try {
+          console.log(`[SyncItemsId] SCROLL BEFORE CALL = ${scrollId}`);
+
           pageResponse = await this.meliItemsRepo.getSellerItems({
             status: 'active',
             limit: this.PAGE_LIMIT,
             useScan: true,
             scrollId,
           });
+
+          console.log(
+            `[SyncItemsId] SCROLL AFTER CALL = ${pageResponse?.scrollId}`,
+          );
 
           break;
         } catch (error) {
@@ -100,20 +101,23 @@ export class SyncItemsId {
         throw new Error('SCAN request permanently failed');
       }
 
-      const received = pageResponse.items.length;
+      const items = pageResponse.items ?? [];
+      const received = items.length;
 
-      console.log(`[SyncItemsId] SCAN | received=${received}`);
+      console.log(`[SyncItemsId] PAGE ${pageCount} | received=${received}`);
 
-      // 🔚 Fin del scan
+      // 🔚 Fin real del scan
       if (received === 0) {
-        hasMore = false;
+        console.log('[SyncItemsId] ===== END OF SCAN =====');
         break;
       }
 
-      buffer.push(...pageResponse.items);
+      buffer.push(...items);
 
-      // 🔥 Guardar siguiente scroll_id
+      // 🔥 Muy importante: actualizar scrollId
       scrollId = pageResponse.scrollId;
+
+      console.log(`[SyncItemsId] SCROLL SET FOR NEXT LOOP = ${scrollId}`);
 
       // 🔥 Guardado por lote
       if (buffer.length >= this.BULK_SIZE) {
@@ -121,6 +125,7 @@ export class SyncItemsId {
         buffer = [];
       }
 
+      pageCount++;
       await this.sleep(this.THROTTLE_MS);
     }
 
@@ -131,7 +136,7 @@ export class SyncItemsId {
   }
 
   /**
-   * Guardado con retry
+   * Bulk save con retry
    */
   private async saveWithRetry(
     sellerId: string,
@@ -156,8 +161,6 @@ export class SyncItemsId {
         await this.sleep(3000);
       }
     }
-
-    console.error('[SyncItemsId] BULK SAVE permanently failed');
 
     throw new Error('Bulk save permanently failed');
   }
