@@ -20,10 +20,10 @@ export function startItemsDetailsSyncWorker(
 
       const { sellerId } = job.data;
 
-      await job.log(`▶️ Starting items details sync for ${sellerId}`);
-      await job.updateProgress(0);
-
       const startedAt = Date.now();
+
+      await job.log(`▶️ Starting items details sync for ${sellerId}`);
+      await job.updateProgress(1);
 
       try {
         await syncItemsDetails.execute(sellerId);
@@ -33,13 +33,15 @@ export function startItemsDetailsSyncWorker(
         await job.updateProgress(100);
         await job.log(`✅ ItemsDetails sync completed in ${duration}s`);
       } catch (error: any) {
-        await job.log(`❌ ItemsDetails sync failed: ${error?.message}`);
-        throw error; // 🔥 importante para que Bull reintente
+        await job.log(`❌ Sync failed: ${error?.message}`);
+        await job.log(error?.stack ?? 'No stack trace');
+
+        throw error; // 🔥 necesario para retry automático
       }
     },
     {
       connection: bullmqConnection,
-      concurrency: 1,
+      concurrency: 1, // 🔥 correcto para no matar la API de Meli
     },
   );
 }

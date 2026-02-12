@@ -4,6 +4,6 @@ export interface IGetItemsIdRepository {
   get(params: {
     sellerId: string;
     limit: number;
-    offset: number;
+    lastId?: number | null;
   }): Promise<ItemsIdPage>;
 }

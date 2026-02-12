@@ -28,5 +28,5 @@ export interface MercadoLibreProduct {
 
   lastUpdated: string | null; // ISO string (la convertimos en repo SQL)
 
-  description: string | null;
+  //description: string | null;
 }

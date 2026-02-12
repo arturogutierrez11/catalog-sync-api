@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import {
   ItemsDetailsJobs,
   ItemsDetailsQueue,
@@ -6,27 +6,21 @@ import {
 
 @Injectable()
 export class ItemsDetailsService {
-  /**
-   * Encola el proceso ItemsDetails
-   * - No ejecuta lógica
-   * - No bloquea
-   * - Seguro para ejecutar manualmente
-   * - Con reintentos automáticos
-   */
   async runSync(sellerId: string) {
+    if (!sellerId) {
+      throw new BadRequestException('sellerId is required');
+    }
+
     const job = await ItemsDetailsQueue.add(
       ItemsDetailsJobs.SYNC_ITEMS_DETAILS,
       { sellerId },
       {
-        jobId: `items-details-${sellerId}`,
-
+        jobId: `items-details-${sellerId}`, // evita duplicados
         attempts: 5,
-
         backoff: {
           type: 'exponential',
           delay: 3000,
         },
-
         removeOnComplete: false,
         removeOnFail: false,
       },

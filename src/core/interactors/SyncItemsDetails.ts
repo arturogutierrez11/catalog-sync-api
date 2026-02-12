@@ -34,16 +34,13 @@ export class SyncItemsDetails {
     private readonly syncStatesRepo: ISyncStatesRepository,
   ) {}
 
-  // ─────────────────────────────────────────────
-  // PUBLIC ENTRY
-  // ─────────────────────────────────────────────
   async execute(sellerId: string): Promise<void> {
     const state = await this.syncStatesRepo.getState({
       process_name: this.PROCESS_NAME,
       seller_id: sellerId,
     });
 
-    let offset = state?.last_offset ?? 0;
+    let lastId: number | null = state?.last_offset ?? null;
 
     if (!state) {
       await this.syncStatesRepo.postState('start', {
@@ -52,23 +49,20 @@ export class SyncItemsDetails {
       });
     }
 
-    offset = await this.processAll(sellerId, offset);
+    lastId = await this.processAll(sellerId, lastId);
 
     await this.syncStatesRepo.postState('done', {
       process_name: this.PROCESS_NAME,
       seller_id: sellerId,
-      last_offset: offset,
+      last_offset: lastId,
     });
   }
 
-  // ─────────────────────────────────────────────
-  // MAIN LOOP
-  // ─────────────────────────────────────────────
   private async processAll(
     sellerId: string,
-    startOffset: number,
-  ): Promise<number> {
-    let offset = startOffset;
+    startLastId: number | null,
+  ): Promise<number | null> {
+    let lastId = startLastId;
     let hasNext = true;
     let failedPages = 0;
 
@@ -76,51 +70,46 @@ export class SyncItemsDetails {
       let pageResponse: ItemsIdPage | null = null;
       let attempts = 0;
 
-      // 🔁 Retry por página
       while (attempts < this.MAX_PAGE_RETRIES) {
         try {
           pageResponse = await this.itemsIdRepo.get({
             sellerId,
             limit: this.PAGE_LIMIT,
-            offset,
+            lastId,
           });
           break;
         } catch (error) {
           attempts++;
           console.error(
-            `[SyncItemsDetails] Page offset=${offset} failed (attempt ${attempts})`,
+            `[SyncItemsDetails] Page lastId=${lastId} failed (attempt ${attempts})`,
           );
           await this.sleep(2000);
         }
       }
 
-      // ❌ Página falló completamente
       if (!pageResponse) {
         failedPages++;
 
         await this.syncStatesRepo.postState('failed', {
           process_name: this.PROCESS_NAME,
           seller_id: sellerId,
-          last_offset: offset,
+          last_offset: lastId,
         });
 
         if (failedPages >= this.MAX_FAILED_PAGES) {
           throw new Error('Too many failed pages, aborting sync');
         }
 
-        offset += this.PAGE_LIMIT;
         continue;
       }
 
       console.log(
-        `[SyncItemsDetails] FETCH IDS offset=${offset} | received=${pageResponse.items.length}`,
+        `[SyncItemsDetails] FETCH IDS lastId=${lastId} | received=${pageResponse.items.length}`,
       );
 
       const detailedProducts: MercadoLibreProduct[] = [];
 
-      // ─────────────────────────────────────────
-      // FETCH DETAILS PER ITEM
-      // ─────────────────────────────────────────
+      // 🔥 (todavía secuencial — lo mejoramos abajo)
       for (const itemId of pageResponse.items) {
         const detail = await this.fetchProductWithRetry(itemId);
 
@@ -131,9 +120,6 @@ export class SyncItemsDetails {
         await this.sleep(this.THROTTLE_MS);
       }
 
-      // ─────────────────────────────────────────
-      // SAVE BULK
-      // ─────────────────────────────────────────
       if (detailedProducts.length) {
         await this.saveWithRetry(sellerId, detailedProducts);
 
@@ -142,17 +128,17 @@ export class SyncItemsDetails {
         );
       }
 
-      hasNext = pageResponse.pagination.has_next;
-      offset += this.PAGE_LIMIT;
+      hasNext = pageResponse.hasNext;
+      lastId = pageResponse.lastId;
 
       await this.syncStatesRepo.postState('offset', {
         process_name: this.PROCESS_NAME,
         seller_id: sellerId,
-        last_offset: offset,
+        last_offset: lastId,
       });
     }
 
-    return offset;
+    return lastId;
   }
 
   // ─────────────────────────────────────────────
@@ -217,7 +203,7 @@ export class SyncItemsDetails {
 
       health: detail.health ?? null,
       lastUpdated: detail.lastUpdated ?? null,
-      description: detail.description ?? null,
+      //description: detail.description ?? null,
     };
   }
 
@@ -228,24 +214,32 @@ export class SyncItemsDetails {
     sellerId: string,
     products: MercadoLibreProduct[],
   ): Promise<void> {
-    let attempts = 0;
+    const CHUNK_SIZE = 10;
 
-    while (attempts < this.MAX_SAVE_RETRIES) {
-      try {
-        await this.madreProductsRepo.saveBulk({
-          sellerId,
-          products,
-        });
+    for (let i = 0; i < products.length; i += CHUNK_SIZE) {
+      const chunk = products.slice(i, i + CHUNK_SIZE);
 
-        return;
-      } catch (error) {
-        attempts++;
-        console.error(`[SyncItemsDetails] SAVE failed (attempt ${attempts})`);
-        await this.sleep(2000);
+      let attempts = 0;
+
+      while (attempts < this.MAX_SAVE_RETRIES) {
+        try {
+          await this.madreProductsRepo.saveBulk({
+            sellerId,
+            products: chunk,
+          });
+
+          break;
+        } catch (error) {
+          attempts++;
+          console.error(`[SyncItemsDetails] SAVE failed (attempt ${attempts})`);
+          await this.sleep(2000);
+        }
+      }
+
+      if (attempts === this.MAX_SAVE_RETRIES) {
+        throw new Error('Bulk save permanently failed');
       }
     }
-
-    throw new Error('Bulk save permanently failed');
   }
 
   // ─────────────────────────────────────────────

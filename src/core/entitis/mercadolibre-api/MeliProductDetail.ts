@@ -16,5 +16,5 @@ export interface MeliProductDetail {
   freeShipping?: boolean;
   health?: number;
   lastUpdated?: string;
-  description?: string;
+  //description?: string;
 }

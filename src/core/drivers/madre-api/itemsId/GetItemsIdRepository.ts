@@ -5,7 +5,7 @@ import { ItemsIdPage } from 'src/core/entitis/madre-api/itemsId/ItemsIdPage';
 
 @Injectable()
 export class GetItemsIdRepository implements IGetItemsIdRepository {
-  private readonly basePath = '/items/ids';
+  private readonly basePath = '/mercadolibre/items';
 
   constructor(
     @Inject('IMadreHttpClient')
@@ -15,14 +15,25 @@ export class GetItemsIdRepository implements IGetItemsIdRepository {
   async get(params: {
     sellerId: string;
     limit: number;
-    offset: number;
+    lastId?: number;
   }): Promise<ItemsIdPage> {
-    return this.httpClient.get<ItemsIdPage>(this.basePath, {
+    const response = await this.httpClient.get<any>(this.basePath, {
       params: {
-        seller_id: params.sellerId,
+        sellerId: params.sellerId,
         limit: params.limit,
-        offset: params.offset,
+        lastId: params.lastId ?? undefined,
       },
     });
+
+    return {
+      items: response.items ?? [],
+      limit: Number(response.limit),
+      count: Number(response.count),
+      lastId:
+        response.lastId !== undefined && response.lastId !== null
+          ? Number(response.lastId)
+          : null,
+      hasNext: Boolean(response.hasNext),
+    };
   }
 }

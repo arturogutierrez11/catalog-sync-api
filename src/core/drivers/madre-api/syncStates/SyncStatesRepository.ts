@@ -5,7 +5,7 @@ import { ISyncStatesRepository } from 'src/core/adapters/madre-api/syncStates/IS
 export type SyncStateParams = {
   process_name: string;
   seller_id: string;
-  last_offset?: number;
+  last_offset?: number | null;
 };
 
 export type SyncStateAction = 'start' | 'offset' | 'done' | 'failed';

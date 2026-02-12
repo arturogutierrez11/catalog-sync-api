@@ -33,7 +33,7 @@ export class GetProductDetailRepository implements IMeliProductDetailRepository 
       freeShipping: response.freeShipping,
       health: response.health,
       lastUpdated: response.lastUpdated,
-      description: response.description,
+      //description: response.description,
     };
   }
 }
