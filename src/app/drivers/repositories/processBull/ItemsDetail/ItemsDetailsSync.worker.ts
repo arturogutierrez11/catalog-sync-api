@@ -71,7 +71,5 @@ export function startItemsDetailsSyncWorker(
     console.error('🚨 Worker error:', err);
   });
 
-  console.log('🚀 ItemsDetails worker started');
-
   return worker;
 }
