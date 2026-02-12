@@ -15,14 +15,15 @@ export class ItemsDetailsService {
       ItemsDetailsJobs.SYNC_ITEMS_DETAILS,
       { sellerId },
       {
-        jobId: `items-details-${sellerId}`, // evita duplicados
         attempts: 5,
         backoff: {
           type: 'exponential',
           delay: 3000,
         },
-        removeOnComplete: false,
-        removeOnFail: false,
+
+        // 🔥 importante
+        removeOnComplete: true,
+        removeOnFail: 100,
       },
     );
 

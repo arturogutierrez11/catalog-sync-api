@@ -13,10 +13,16 @@ type SyncItemsDetailsPayload = {
 export function startItemsDetailsSyncWorker(
   syncItemsDetails: SyncItemsDetails,
 ) {
-  return new Worker<SyncItemsDetailsPayload>(
+  const worker = new Worker<SyncItemsDetailsPayload>(
     ITEMS_DETAILS_QUEUE_NAME,
     async (job: Job<SyncItemsDetailsPayload>) => {
-      if (job.name !== ItemsDetailsJobs.SYNC_ITEMS_DETAILS) return;
+      // Seguridad extra
+      if (job.name !== ItemsDetailsJobs.SYNC_ITEMS_DETAILS) {
+        console.log('⚠️ Unknown job type received:', job.name);
+        return;
+      }
+
+      console.log('🔥 JOB RECEIVED:', job.id);
 
       const { sellerId } = job.data;
 
@@ -32,16 +38,40 @@ export function startItemsDetailsSyncWorker(
 
         await job.updateProgress(100);
         await job.log(`✅ ItemsDetails sync completed in ${duration}s`);
+
+        console.log(`✅ JOB COMPLETED: ${job.id} (${duration}s)`);
       } catch (error: any) {
+        console.error('❌ JOB FAILED:', job.id);
+        console.error(error);
+
         await job.log(`❌ Sync failed: ${error?.message}`);
         await job.log(error?.stack ?? 'No stack trace');
 
-        throw error; // 🔥 necesario para retry automático
+        throw error; // 🔥 NECESARIO para que Bull haga retry
       }
     },
     {
       connection: bullmqConnection,
-      concurrency: 1, // 🔥 correcto para no matar la API de Meli
+      concurrency: 1, // no saturar MercadoLibre
     },
   );
+
+  // 🔔 Eventos globales del worker
+
+  worker.on('completed', (job) => {
+    console.log(`🎉 Worker event: job ${job.id} completed`);
+  });
+
+  worker.on('failed', (job, err) => {
+    console.log(`💥 Worker event: job ${job?.id} failed`);
+    console.log(err);
+  });
+
+  worker.on('error', (err) => {
+    console.error('🚨 Worker error:', err);
+  });
+
+  console.log('🚀 ItemsDetails worker started');
+
+  return worker;
 }
