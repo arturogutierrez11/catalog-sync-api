@@ -14,11 +14,21 @@ export class GetSellerItemsRepository implements IGetItemsIdRepository {
   ) {}
 
   async getSellerItems(params: GetItemsIdParams): Promise<ItemsId> {
+    console.log('[GetSellerItemsRepository] REQUEST PARAMS:', params);
+
     const response = await this.httpClient.get<any>('/mercadolibre/products', {
       params,
     });
 
-    // 🔴 SCAN MODE
+    console.log(
+      '[GetSellerItemsRepository] RESPONSE scroll_id:',
+      response?.scroll_id,
+    );
+    console.log(
+      '[GetSellerItemsRepository] RESPONSE items length:',
+      response?.items?.length,
+    );
+
     if (params.useScan) {
       return {
         sellerId: response.seller_id,
@@ -27,7 +37,6 @@ export class GetSellerItemsRepository implements IGetItemsIdRepository {
       };
     }
 
-    // 🔵 OFFSET MODE
     return {
       sellerId: response.seller_id,
       items: response.items ?? [],
