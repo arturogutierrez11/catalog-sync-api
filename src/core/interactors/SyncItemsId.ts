@@ -30,7 +30,7 @@ export class SyncItemsId {
    * FULL REBUILD
    */
   async execute(sellerId: string): Promise<void> {
-    console.log('[SyncItemsId] ===== FULL SYNC START =====');
+    console.log('\n[SyncItemsId] ===== FULL SYNC START =====\n');
 
     await this.syncStatesRepo.postState('start', {
       process_name: this.PROCESS_NAME,
@@ -46,9 +46,9 @@ export class SyncItemsId {
         last_offset: 0,
       });
 
-      console.log('[SyncItemsId] ===== FULL SYNC DONE =====');
+      console.log('\n[SyncItemsId] ===== FULL SYNC DONE =====\n');
     } catch (error) {
-      console.error('[SyncItemsId] ===== SYNC FAILED =====');
+      console.error('\n[SyncItemsId] ===== SYNC FAILED =====\n');
 
       await this.syncStatesRepo.postState('failed', {
         process_name: this.PROCESS_NAME,
@@ -65,6 +65,7 @@ export class SyncItemsId {
    */
   private async processAll(sellerId: string): Promise<void> {
     let scrollId: string | undefined = undefined;
+    let previousScrollId: string | undefined = undefined;
     let buffer: string[] = [];
     let pageCount = 0;
 
@@ -108,14 +109,29 @@ export class SyncItemsId {
 
       // 🔚 Fin real del scan
       if (received === 0) {
-        console.log('[SyncItemsId] ===== END OF SCAN =====');
+        console.log('\n[SyncItemsId] ===== END OF SCAN =====\n');
         break;
       }
 
+      // 🔥 Acumular
       buffer.push(...items);
 
-      // 🔥 Muy importante: actualizar scrollId
+      console.log(`[SyncItemsId] BUFFER SIZE = ${buffer.length}`);
+
+      // 🔥 Validar scroll
+      previousScrollId = scrollId;
       scrollId = pageResponse.scrollId;
+
+      if (!scrollId) {
+        console.error(
+          '[SyncItemsId] ❌ SCROLL ID IS UNDEFINED — scan se rompió',
+        );
+        throw new Error('ScrollId undefined during scan');
+      }
+
+      if (previousScrollId === scrollId) {
+        console.warn(`[SyncItemsId] ⚠️ SCROLL DID NOT CHANGE! ${scrollId}`);
+      }
 
       console.log(`[SyncItemsId] SCROLL SET FOR NEXT LOOP = ${scrollId}`);
 
