@@ -2,14 +2,15 @@ import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags, ApiBody } from '@nestjs/swagger';
 import { ItemsIdService } from 'src/app/services/itemsId/ItemsIdService';
 
-@ApiTags('internal-items-id')
+@ApiTags('Sync Data Mercado Libre')
 @Controller('internal/items-id')
 export class ItemsIdController {
   constructor(private readonly service: ItemsIdService) {}
 
   @Post('sync')
   @ApiOperation({
-    summary: 'Ejecuta el sync de Items ID (manual)',
+    summary: 'Encola el proceso de sincronización de items IDs de MercadoLibre',
+
     description: `
 Dispara el proceso **ItemsId** vía BullMQ.
 

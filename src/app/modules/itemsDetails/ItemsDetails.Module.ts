@@ -87,7 +87,6 @@ export class ItemsDetailsModule implements OnModuleInit {
   constructor(private readonly syncItemsDetails: SyncItemsDetails) {}
 
   onModuleInit() {
-    console.log('🚀 ItemsDetails worker started');
     startItemsDetailsSyncWorker(this.syncItemsDetails);
   }
 }

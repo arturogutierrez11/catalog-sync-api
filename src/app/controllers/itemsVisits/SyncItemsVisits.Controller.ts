@@ -1,30 +1,29 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody, ApiOkResponse } from '@nestjs/swagger';
-import { ItemsDetailsService } from 'src/app/services/itemsDetails/ItemsDetailsService';
+import { ItemsVisitsService } from 'src/app/services/itemsVisits/ItemsVisitsService';
 
-class SyncItemsDetailsDto {
+class SyncItemsVisitsDto {
   sellerId: string;
 }
 
 @ApiTags('Sync Data Mercado Libre')
-@Controller('internal/items-details')
-export class SyncItemsDetailsController {
-  constructor(private readonly service: ItemsDetailsService) {}
+@Controller('internal/items-visits')
+export class SyncItemsVisitsController {
+  constructor(private readonly service: ItemsVisitsService) {}
 
   @Post('sync')
   @ApiOperation({
-    summary: 'Encola el proceso de sincronización de detalles de items',
+    summary: 'Encola el proceso de sincronización de visitas de items',
     description: `
 Este endpoint:
 
 1️⃣ Obtiene los Items IDs desde Madre  
-2️⃣ Va a MercadoLibre a buscar el detalle de cada producto  
-3️⃣ Guarda los datos en Madre vía UPSERT  
+2️⃣ Va a MercadoLibre a buscar las visitas de cada item  
+3️⃣ Guarda las visitas en Madre vía UPSERT  
 4️⃣ Maneja reintentos automáticos  
 5️⃣ Persiste estado de sincronización  
 
-⚠️ No ejecuta inmediatamente.
-Solo encola el job en BullMQ.
+⚠️ Solo encola el job en BullMQ.
     `,
   })
   @ApiBody({
@@ -44,7 +43,7 @@ Solo encola el job en BullMQ.
       },
     },
   })
-  async runSync(@Body() body: SyncItemsDetailsDto) {
+  async runSync(@Body() body: SyncItemsVisitsDto) {
     return this.service.runSync(body.sellerId);
   }
 }
