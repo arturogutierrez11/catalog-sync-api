@@ -48,8 +48,7 @@ export class UpdateItemsDetails {
       seller_id: sellerId,
     });
 
-    let lastId: number | null = state?.last_offset ?? null;
-
+    let lastId: number = state?.last_offset ?? 0;
     if (!state) {
       await this.syncStatesRepo.postState('start', {
         process_name: this.PROCESS_NAME,
@@ -71,8 +70,8 @@ export class UpdateItemsDetails {
 
   private async processAll(
     sellerId: string,
-    startLastId: number | null,
-  ): Promise<number | null> {
+    startLastId: number,
+  ): Promise<number> {
     let lastId = startLastId;
     let hasNext = true;
     let failedPages = 0;
@@ -89,7 +88,7 @@ export class UpdateItemsDetails {
             lastId,
           });
           break;
-        } catch {
+        } catch (error) {
           attempts++;
           await this.sleep(2000);
         }
@@ -123,7 +122,7 @@ export class UpdateItemsDetails {
         const mapped = this.mapProduct(detail);
 
         if (existingIds.has(id)) {
-          toUpdate.push(mapped);
+          toUpdate.push(mapped); // 🔥 COMPLETO
         } else {
           toInsert.push(mapped);
         }
@@ -131,23 +130,15 @@ export class UpdateItemsDetails {
         await this.sleep(this.THROTTLE_MS);
       }
 
+      // 🔄 UPDATE COMPLETO
       if (toUpdate.length) {
         await this.updateRepo.updateBulk({
           sellerId,
-          products: toUpdate.map((p) => ({
-            id: p.id,
-            categoryId: p.categoryId,
-            price: p.price,
-            stock: p.stock,
-            soldQuantity: p.soldQuantity,
-            status: p.status,
-            freeShipping: p.freeShipping,
-            health: p.health ?? undefined,
-            lastUpdated: p.lastUpdated ?? undefined,
-          })),
+          products: toUpdate,
         });
       }
 
+      // ➕ INSERT COMPLETO
       if (toInsert.length) {
         await this.saveRepo.saveBulk({
           sellerId,
@@ -156,7 +147,14 @@ export class UpdateItemsDetails {
       }
 
       hasNext = page.hasNext;
-      lastId = page.lastId;
+      lastId = page.lastId ?? lastId;
+
+      // actualizar offset progresivamente
+      await this.syncStatesRepo.postState('offset', {
+        process_name: this.PROCESS_NAME,
+        seller_id: sellerId,
+        last_offset: lastId,
+      });
     }
 
     return lastId;
@@ -168,7 +166,7 @@ export class UpdateItemsDetails {
     while (attempts < this.MAX_ITEM_RETRIES) {
       try {
         return await this.meliRepo.getProductById(id);
-      } catch {
+      } catch (error) {
         attempts++;
         await this.sleep(1500);
       }
@@ -183,7 +181,6 @@ export class UpdateItemsDetails {
       categoryId: detail.categoryId ?? null,
 
       title: detail.title,
-
       price: detail.price,
       currency: detail.currency,
 
@@ -209,6 +206,6 @@ export class UpdateItemsDetails {
   }
 
   private sleep(ms: number) {
-    return new Promise((r) => setTimeout(r, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

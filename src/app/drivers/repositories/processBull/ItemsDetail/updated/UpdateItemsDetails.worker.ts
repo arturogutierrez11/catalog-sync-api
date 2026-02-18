@@ -11,6 +11,14 @@ export function UpdateItemsDetailsWorker(interactor: UpdateItemsDetails) {
   const worker = new Worker<Payload>(
     UPDATE_ITEMS_DETAILS_QUEUE_NAME,
     async (job: Job<Payload>) => {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📦 RAW JOB RECEIVED');
+      console.log('Job ID:', job.id);
+      console.log('Job Name:', job.name);
+      console.log('Attempts Made:', job.attemptsMade);
+      console.log('Payload:', JSON.stringify(job.data, null, 2));
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
       if (job.name !== 'update-items-details') {
         console.log('⚠️ Unknown job type received:', job.name);
         return;
@@ -18,7 +26,13 @@ export function UpdateItemsDetailsWorker(interactor: UpdateItemsDetails) {
 
       const { sellerId } = job.data;
 
-      console.log(`🔥 UPDATE JOB RECEIVED: ${job.id}`);
+      if (!sellerId) {
+        console.error('❌ sellerId is missing in job payload');
+        throw new Error('sellerId is required');
+      }
+
+      console.log(`🔥 UPDATE JOB STARTED`);
+      console.log(`Seller ID: ${sellerId}`);
 
       const startedAt = Date.now();
 
@@ -27,17 +41,19 @@ export function UpdateItemsDetailsWorker(interactor: UpdateItemsDetails) {
 
         const duration = ((Date.now() - startedAt) / 1000).toFixed(2);
 
-        console.log(`✅ UPDATE JOB COMPLETED: ${job.id} (${duration}s)`);
+        console.log(`✅ UPDATE JOB COMPLETED`);
+        console.log(`Job ID: ${job.id}`);
+        console.log(`Duration: ${duration}s`);
       } catch (error) {
         console.error(`❌ UPDATE JOB FAILED: ${job.id}`);
-        console.error(error);
+        console.error('Error stack:', error);
 
         throw error; // 🔥 necesario para retry automático
       }
     },
     {
       connection: bullmqConnection,
-      concurrency: 1, // no saturar Meli
+      concurrency: 1,
     },
   );
 
