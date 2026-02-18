@@ -1,5 +1,8 @@
 import { MercadoLibreProduct } from 'src/core/entitis/madre-api/itemsDetails/MercadoLibreProduct';
 
 export interface IGetItemsDetailsRepository {
-  getByIds(params: { ids: string[] }): Promise<MercadoLibreProduct[]>;
+  getByIds(params: {
+    sellerId: string;
+    ids: string[];
+  }): Promise<MercadoLibreProduct[]>;
 }

@@ -63,4 +63,17 @@ export class MadreHttpClient implements IMadreHttpClient {
       return MadreHttpErrorHandler.handle(error);
     }
   }
+
+  async patch<T>(
+    url: string,
+    body: unknown,
+    config?: AxiosRequestConfig,
+  ): Promise<T> {
+    try {
+      const response = await this.client.patch<T>(url, body, config);
+      return response.data;
+    } catch (error) {
+      throw MadreHttpErrorHandler.handle(error);
+    }
+  }
 }

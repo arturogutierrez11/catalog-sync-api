@@ -6,6 +6,7 @@ import { ItemsIdQueue } from './drivers/repositories/processBull/itemsId/ItemsId
 import { ItemsDetailsQueue } from './drivers/repositories/processBull/ItemsDetail/ItemsDetails.queue';
 import { ItemsVisitsQueue } from './drivers/repositories/processBull/itemsVisits/ItemsVisits.queue';
 import { MeliCategoriesQueue } from './drivers/repositories/processBull/categories/MeliCategories.queue';
+import { UpdateItemsDetailsQueue } from './drivers/repositories/processBull/ItemsDetail/updated/UpdatedDetailsJob.queue';
 
 export function setupBullBoard(app: any) {
   const serverAdapter = new ExpressAdapter();
@@ -17,6 +18,7 @@ export function setupBullBoard(app: any) {
       new BullMQAdapter(ItemsDetailsQueue),
       new BullMQAdapter(ItemsVisitsQueue),
       new BullMQAdapter(MeliCategoriesQueue),
+      new BullMQAdapter(UpdateItemsDetailsQueue),
     ],
     serverAdapter,
   });

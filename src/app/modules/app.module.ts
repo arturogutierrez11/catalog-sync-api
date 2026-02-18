@@ -6,6 +6,7 @@ import { ItemsIdModule } from './itemsId/ItemsId.module';
 import { ItemsDetailsModule } from './itemsDetails/ItemsDetails.Module';
 import { ItemsVisitsModule } from './itemsVisits/ItemsVisits.Module';
 import { MeliCategoriesModule } from './categories/MeliCategories.Module';
+import { UpdateItemsDetailsModule } from './itemsDetails/updated/UpdateItemsDetails.Module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -16,6 +17,7 @@ import { MeliCategoriesModule } from './categories/MeliCategories.Module';
     ItemsDetailsModule,
     ItemsVisitsModule,
     MeliCategoriesModule,
+    UpdateItemsDetailsModule,
   ],
 })
 export class AppModule {}
