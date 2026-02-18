@@ -54,7 +54,10 @@ export class UpdateItemsDetails {
       await this.syncStatesRepo.postState('start', {
         process_name: this.PROCESS_NAME,
         seller_id: sellerId,
+        last_offset: 0,
       });
+
+      lastId = 0;
     }
 
     lastId = await this.processAll(sellerId, lastId);
@@ -62,7 +65,7 @@ export class UpdateItemsDetails {
     await this.syncStatesRepo.postState('done', {
       process_name: this.PROCESS_NAME,
       seller_id: sellerId,
-      last_offset: lastId,
+      last_offset: lastId ?? 0,
     });
   }
 
