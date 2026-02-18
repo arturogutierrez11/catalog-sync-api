@@ -1,6 +1,6 @@
 export interface MercadoLibreProduct {
   id: string;
-
+  categoryId: string;
   title: string;
 
   price: number;

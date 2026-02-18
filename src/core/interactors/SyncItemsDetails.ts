@@ -179,6 +179,8 @@ export class SyncItemsDetails {
   ): MercadoLibreProduct {
     return {
       id: detail.id,
+      categoryId: detail.categoryId,
+
       title: detail.title,
 
       price: detail.price,

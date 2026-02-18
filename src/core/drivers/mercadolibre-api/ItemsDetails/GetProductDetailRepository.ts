@@ -17,6 +17,7 @@ export class GetProductDetailRepository implements IMeliProductDetailRepository 
 
     return {
       id: response.id,
+      categoryId: response.categoryId,
       title: response.title,
       price: response.price,
       currency: response.currency,

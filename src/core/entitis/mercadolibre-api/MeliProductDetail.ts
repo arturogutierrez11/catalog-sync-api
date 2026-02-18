@@ -1,5 +1,6 @@
 export interface MeliProductDetail {
   id: string;
+  categoryId: string;
   title: string;
   price: number;
   currency: string;
