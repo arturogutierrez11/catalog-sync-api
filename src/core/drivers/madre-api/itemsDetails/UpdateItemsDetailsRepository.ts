@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { IMadreHttpClient } from 'src/core/adapters/madre-api/http/IMadreHttpClient';
 import { IUpdateItemsDetailsRepository } from 'src/core/adapters/madre-api/itemsDetails/IUpdateItemsDetailsRepository';
+import { MercadoLibreProduct } from 'src/core/entitis/madre-api/itemsDetails/MercadoLibreProduct';
 
 @Injectable()
 export class UpdateItemsDetailsRepository implements IUpdateItemsDetailsRepository {
@@ -13,17 +14,7 @@ export class UpdateItemsDetailsRepository implements IUpdateItemsDetailsReposito
 
   async updateBulk(params: {
     sellerId: string;
-    products: {
-      id: string;
-      categoryId?: string | null;
-      price?: number;
-      stock?: number;
-      soldQuantity?: number;
-      status?: string;
-      freeShipping?: boolean;
-      health?: number;
-      lastUpdated?: string;
-    }[];
+    products: MercadoLibreProduct[];
   }): Promise<{ updated: number }> {
     if (!params.products?.length) {
       return { updated: 0 };

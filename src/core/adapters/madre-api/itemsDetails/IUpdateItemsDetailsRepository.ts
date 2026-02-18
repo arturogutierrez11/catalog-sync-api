@@ -1,16 +1,8 @@
+import { MercadoLibreProduct } from 'src/core/entitis/madre-api/itemsDetails/MercadoLibreProduct';
+
 export interface IUpdateItemsDetailsRepository {
   updateBulk(params: {
     sellerId: string;
-    products: {
-      id: string;
-      categoryId?: string | null;
-      price?: number;
-      stock?: number;
-      soldQuantity?: number;
-      status?: string;
-      freeShipping?: boolean;
-      health?: number;
-      lastUpdated?: string;
-    }[];
+    products: MercadoLibreProduct[];
   }): Promise<{ updated: number }>;
 }
