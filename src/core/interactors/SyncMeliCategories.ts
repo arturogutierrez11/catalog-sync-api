@@ -12,6 +12,9 @@ export class SyncMeliCategories {
   private readonly MAX_RETRIES = 3;
   private readonly CHUNK_SIZE = 200;
 
+  // 🔥 Usamos seller_id numérico válido para procesos GLOBAL
+  private readonly GLOBAL_SELLER_ID = '0';
+
   constructor(
     @Inject('IGetCategoriesRepository')
     private readonly getCategoriesRepo: IGetCategoriesRepository,
@@ -23,21 +26,22 @@ export class SyncMeliCategories {
     private readonly syncStatesRepo: ISyncStatesRepository,
   ) {}
 
-  // ─────────────────────────────────────────────
-  // PUBLIC ENTRY
-  // ─────────────────────────────────────────────
   async execute(): Promise<void> {
+    // START
     await this.syncStatesRepo.postState('start', {
       process_name: this.PROCESS_NAME,
-      seller_id: 'GLOBAL',
+      seller_id: this.GLOBAL_SELLER_ID,
+      last_offset: 0,
     });
+
+    let flat: FlatCategory[] = [];
 
     try {
       const tree = await this.fetchTreeWithRetry();
 
       console.log(`[SyncMeliCategories] ROOT CATEGORIES: ${tree.length}`);
 
-      const flat = this.flattenTree(tree);
+      flat = this.flattenTree(tree);
 
       console.log(
         `[SyncMeliCategories] TOTAL FLATTENED CATEGORIES: ${flat.length}`,
@@ -45,46 +49,58 @@ export class SyncMeliCategories {
 
       await this.saveInChunks(flat);
 
+      // DONE
       await this.syncStatesRepo.postState('done', {
         process_name: this.PROCESS_NAME,
-        seller_id: 'GLOBAL',
+        seller_id: this.GLOBAL_SELLER_ID,
+        last_offset: flat.length,
       });
 
       console.log('[SyncMeliCategories] SYNC COMPLETED');
     } catch (error) {
+      // FAILED
       await this.syncStatesRepo.postState('failed', {
         process_name: this.PROCESS_NAME,
-        seller_id: 'GLOBAL',
+        seller_id: this.GLOBAL_SELLER_ID,
+        last_offset: flat.length ?? 0,
       });
 
       throw error;
     }
   }
 
-  // ─────────────────────────────────────────────
-  // FETCH TREE WITH RETRY
-  // ─────────────────────────────────────────────
   private async fetchTreeWithRetry(): Promise<Category[]> {
     let attempts = 0;
 
     while (attempts < this.MAX_RETRIES) {
       try {
-        return await this.getCategoriesRepo.getTree();
+        const roots = await this.getCategoriesRepo.getTree();
+
+        console.log(`[SyncMeliCategories] ROOTS: ${roots.length}`);
+
+        const fullTree: Category[] = [];
+
+        for (const root of roots) {
+          console.log(`[SyncMeliCategories] Fetching branch for ${root.id}...`);
+
+          const branch = await this.getCategoriesRepo.getBranchById(root.id);
+
+          fullTree.push(branch);
+        }
+
+        return fullTree;
       } catch (error) {
         attempts++;
         console.error(
           `[SyncMeliCategories] TREE FETCH FAILED (attempt ${attempts})`,
         );
-        await this.sleep(2000);
+        await this.sleep(3000);
       }
     }
 
     throw new Error('Failed to fetch categories tree');
   }
 
-  // ─────────────────────────────────────────────
-  // FLATTEN TREE
-  // ─────────────────────────────────────────────
   private flattenTree(tree: Category[]): FlatCategory[] {
     const result: FlatCategory[] = [];
 
@@ -116,9 +132,6 @@ export class SyncMeliCategories {
     return result;
   }
 
-  // ─────────────────────────────────────────────
-  // SAVE IN CHUNKS
-  // ─────────────────────────────────────────────
   private async saveInChunks(categories: FlatCategory[]): Promise<void> {
     for (let i = 0; i < categories.length; i += this.CHUNK_SIZE) {
       const chunk = categories.slice(i, i + this.CHUNK_SIZE);
