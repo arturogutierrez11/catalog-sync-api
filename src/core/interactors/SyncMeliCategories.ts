@@ -68,7 +68,6 @@ export class SyncMeliCategories {
     }
   }
 
-  // 🔥 Fetch completo usando tus 2 endpoints
   private async fetchTreeWithRetry(): Promise<Category[]> {
     let attempts = 0;
 
@@ -76,16 +75,29 @@ export class SyncMeliCategories {
       try {
         const roots = await this.getCategoriesRepo.getTree();
 
-        console.log(`[SyncMeliCategories] ROOTS FOUND: ${roots.length}`);
+        console.log(`[SyncMeliCategories] ROOTS: ${roots.length}`);
 
         const fullTree: Category[] = [];
 
         for (const root of roots) {
-          console.log(`[SyncMeliCategories] Fetching branch for ${root.id}...`);
+          const updatedChildren: Category[] = [];
 
-          const branch = await this.getCategoriesRepo.getBranchById(root.id);
+          for (const level2 of root.children ?? []) {
+            console.log(
+              `[SyncMeliCategories] Fetching deep branch for ${level2.id}`,
+            );
 
-          fullTree.push(branch);
+            const deepBranch = await this.getCategoriesRepo.getBranchById(
+              level2.id,
+            );
+
+            updatedChildren.push(deepBranch);
+          }
+
+          fullTree.push({
+            ...root,
+            children: updatedChildren,
+          });
         }
 
         return fullTree;
@@ -94,7 +106,6 @@ export class SyncMeliCategories {
         console.error(
           `[SyncMeliCategories] TREE FETCH FAILED (attempt ${attempts})`,
         );
-
         await this.sleep(3000);
       }
     }
