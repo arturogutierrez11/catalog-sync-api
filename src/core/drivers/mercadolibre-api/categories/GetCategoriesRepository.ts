@@ -12,29 +12,55 @@ export class GetCategoriesRepository implements IGetCategoriesRepository {
     private readonly httpClient: IMeliHttpClient,
   ) {}
 
-  // 🔹 1) Trae SOLO nivel 1 (32 categorías root)
+  /**
+   * 🔹 Trae SOLO categorías padre (nivel 1)
+   * GET /meli/categories
+   */
   async getTree(): Promise<Category[]> {
-    const response = await this.httpClient.get<Category[]>(
-      `${this.basePath}/tree`,
-    );
+    const response = await this.httpClient.get<any[]>(`${this.basePath}`);
 
-    return response ?? [];
+    if (!response) return [];
+
+    return response.map((r) => ({
+      id: r.id,
+      name: r.name,
+      hasChildren: true,
+      children: [],
+    }));
   }
 
-  // 🔹 2) Trae rama COMPLETA de una categoría root
+  /**
+   * 🔹 Trae categoría completa por ID
+   * GET /meli/categories/:id
+   */
   async getBranchById(categoryId: string): Promise<Category> {
     if (!categoryId) {
       throw new Error('CategoryId is required');
     }
 
-    const response = await this.httpClient.get<Category>(
-      `${this.basePath}/${categoryId}/branch`,
+    const response = await this.httpClient.get<any>(
+      `${this.basePath}/${categoryId}`,
     );
 
     if (!response) {
-      throw new Error(`Category branch ${categoryId} not found`);
+      throw new Error(`Category ${categoryId} not found`);
     }
 
-    return response;
+    return {
+      id: response.id,
+      name: response.name,
+      hasChildren: (response.children_categories?.length ?? 0) > 0,
+      children:
+        response.children_categories?.map((child: any) => ({
+          id: child.id,
+          name: child.name,
+          hasChildren: false,
+          children: [],
+        })) ?? [],
+      picture: response.picture ?? null,
+      permalink: response.permalink ?? null,
+      totalItems: response.total_items_in_this_category ?? null,
+      pathFromRoot: response.path_from_root ?? [],
+    };
   }
 }
