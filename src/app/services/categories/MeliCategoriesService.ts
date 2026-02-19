@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   MeliCategoriesJobs,
   MeliCategoriesQueue,
@@ -6,7 +6,11 @@ import {
 
 @Injectable()
 export class MeliCategoriesService {
+  private readonly logger = new Logger(MeliCategoriesService.name);
+
   async runSync() {
+    this.logger.log('📌 Adding Meli Categories Sync job to queue...');
+
     const job = await MeliCategoriesQueue.add(
       MeliCategoriesJobs.SYNC_MELI_CATEGORIES,
       {},
@@ -20,6 +24,10 @@ export class MeliCategoriesService {
         removeOnComplete: false,
         removeOnFail: false,
       },
+    );
+
+    this.logger.log(
+      `✅ Job queued successfully | jobId=${job.id} | attempts=5`,
     );
 
     return {
