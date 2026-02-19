@@ -76,17 +76,16 @@ export class SyncMeliCategories {
       try {
         const roots = await this.getCategoriesRepo.getTree();
 
+        console.log(`[SyncMeliCategories] ROOTS: ${roots.length}`);
+
         const fullTree: Category[] = [];
 
         for (const root of roots) {
-          if (root.hasChildren) {
-            const branch = await this.getCategoriesRepo.getBranchById(root.id);
-            fullTree.push(branch);
-          } else {
-            fullTree.push(root);
-          }
+          console.log(`[SyncMeliCategories] Fetching branch for ${root.id}...`);
 
-          await this.sleep(120); // pequeño throttle
+          const branch = await this.getCategoriesRepo.getBranchById(root.id);
+
+          fullTree.push(branch);
         }
 
         return fullTree;
@@ -95,7 +94,7 @@ export class SyncMeliCategories {
         console.error(
           `[SyncMeliCategories] TREE FETCH FAILED (attempt ${attempts})`,
         );
-        await this.sleep(2000);
+        await this.sleep(3000);
       }
     }
 
