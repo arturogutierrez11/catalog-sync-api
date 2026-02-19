@@ -4,6 +4,4 @@ export interface IGetCategoriesRepository {
   getTree(): Promise<Category[]>;
 
   getBranchById(categoryId: string): Promise<Category>;
-
-  getFullTree(): Promise<Category[]>;
 }

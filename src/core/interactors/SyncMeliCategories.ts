@@ -8,12 +8,10 @@ import { FlatCategory } from '../entitis/madre-api/categories/FlatCategory';
 @Injectable()
 export class SyncMeliCategories {
   private readonly PROCESS_NAME = 'meli_categories_sync';
+  private readonly GLOBAL_SELLER_ID = '0';
 
   private readonly MAX_RETRIES = 3;
   private readonly CHUNK_SIZE = 200;
-
-  // 🔥 Usamos seller_id numérico válido para procesos GLOBAL
-  private readonly GLOBAL_SELLER_ID = '0';
 
   constructor(
     @Inject('IGetCategoriesRepository')
@@ -27,7 +25,8 @@ export class SyncMeliCategories {
   ) {}
 
   async execute(): Promise<void> {
-    // START
+    console.log('🚀 Starting MercadoLibre Categories Sync...');
+
     await this.syncStatesRepo.postState('start', {
       process_name: this.PROCESS_NAME,
       seller_id: this.GLOBAL_SELLER_ID,
@@ -49,16 +48,16 @@ export class SyncMeliCategories {
 
       await this.saveInChunks(flat);
 
-      // DONE
       await this.syncStatesRepo.postState('done', {
         process_name: this.PROCESS_NAME,
         seller_id: this.GLOBAL_SELLER_ID,
         last_offset: flat.length,
       });
 
-      console.log('[SyncMeliCategories] SYNC COMPLETED');
+      console.log('✅ MercadoLibre Categories Sync COMPLETED');
     } catch (error) {
-      // FAILED
+      console.error('❌ Sync failed:', error);
+
       await this.syncStatesRepo.postState('failed', {
         process_name: this.PROCESS_NAME,
         seller_id: this.GLOBAL_SELLER_ID,
@@ -69,6 +68,7 @@ export class SyncMeliCategories {
     }
   }
 
+  // 🔥 Fetch completo usando tus 2 endpoints
   private async fetchTreeWithRetry(): Promise<Category[]> {
     let attempts = 0;
 
@@ -76,7 +76,7 @@ export class SyncMeliCategories {
       try {
         const roots = await this.getCategoriesRepo.getTree();
 
-        console.log(`[SyncMeliCategories] ROOTS: ${roots.length}`);
+        console.log(`[SyncMeliCategories] ROOTS FOUND: ${roots.length}`);
 
         const fullTree: Category[] = [];
 
@@ -94,6 +94,7 @@ export class SyncMeliCategories {
         console.error(
           `[SyncMeliCategories] TREE FETCH FAILED (attempt ${attempts})`,
         );
+
         await this.sleep(3000);
       }
     }
@@ -101,6 +102,7 @@ export class SyncMeliCategories {
     throw new Error('Failed to fetch categories tree');
   }
 
+  // 🔥 Flatten real del árbol completo
   private flattenTree(tree: Category[]): FlatCategory[] {
     const result: FlatCategory[] = [];
 
@@ -132,6 +134,7 @@ export class SyncMeliCategories {
     return result;
   }
 
+  // 🔥 Guardado en bloques
   private async saveInChunks(categories: FlatCategory[]): Promise<void> {
     for (let i = 0; i < categories.length; i += this.CHUNK_SIZE) {
       const chunk = categories.slice(i, i + this.CHUNK_SIZE);
@@ -141,15 +144,18 @@ export class SyncMeliCategories {
       while (attempts < this.MAX_RETRIES) {
         try {
           await this.saveCategoriesRepo.save(chunk);
+
           console.log(
             `[SyncMeliCategories] SAVED CHUNK ${i} - ${i + chunk.length}`,
           );
+
           break;
         } catch (error) {
           attempts++;
           console.error(
             `[SyncMeliCategories] SAVE CHUNK FAILED (attempt ${attempts})`,
           );
+
           await this.sleep(2000);
         }
       }
