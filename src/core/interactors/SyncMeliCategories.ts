@@ -23,8 +23,16 @@ export class SyncMeliCategories {
 
     const flat: FlatCategory[] = [];
 
-    for (const root of roots) {
-      await this.processCategoryRecursive(root.id, null, 1, null, flat);
+    const CONCURRENCY = 4;
+
+    for (let i = 0; i < roots.length; i += CONCURRENCY) {
+      const slice = roots.slice(i, i + CONCURRENCY);
+
+      await Promise.all(
+        slice.map((root) =>
+          this.processCategoryRecursive(root.id, null, 1, null, flat),
+        ),
+      );
     }
 
     console.log(`🌳 Total categories flattened: ${flat.length}`);
@@ -63,6 +71,9 @@ export class SyncMeliCategories {
         level + 1,
         path,
         accumulator,
+      );
+      console.log(
+        `🔎 Processing ${category.id} | level=${level} | children=${category.children?.length ?? 0}`,
       );
     }
   }
